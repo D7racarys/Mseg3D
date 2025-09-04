@@ -64,7 +64,7 @@ test_cfg = dict(
 
 # dataset settings
 dataset_type = "SemanticNuscDataset"
-data_root =  "data/SemanticNusc"
+data_root =  "/data/luochao/Paper/UniPAD/data/nuscenes"
 nsweeps = 1
 
 
@@ -131,9 +131,9 @@ test_pipeline = [
 ]
 
 
-train_anno = "data/SemanticNusc/infos_train_10sweeps_segdet_withvelo_filter_True.pkl"
-val_anno = "data/SemanticNusc/infos_val_10sweeps_segdet_withvelo_filter_True.pkl"
-test_anno = "data/SemanticNusc/infos_test_10sweeps_segdet_withvelo_filter_True.pkl"
+train_anno = "/data/luochao/Paper/UniPAD/data/nuscenes/infos_train_10sweeps_segdet_withvelo_filter_True.pkl"
+val_anno = "/data/luochao/Paper/UniPAD/data/nuscenes/infos_val_10sweeps_segdet_withvelo_filter_True.pkl"
+test_anno = "/data/luochao/Paper/UniPAD/data/nuscenes/infos_test_10sweeps_segdet_withvelo_filter_True.pkl"
 
 
 data = dict(
@@ -198,7 +198,7 @@ dist_params = dict(backend="nccl", init_method="env://")
 log_level = "INFO"
 work_dir = './work_dirs/{}/'.format(__file__[__file__.rfind('/') + 1:-3])
 load_from = None
-resume_from = None 
+resume_from = None
 workflow = [('train', 1)]
 
 sync_bn_type = "torch"

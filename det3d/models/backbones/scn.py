@@ -1,6 +1,6 @@
 import numpy as np
-import spconv
-from spconv import SparseConv3d, SubMConv3d
+import spconv.pytorch as spconv
+from spconv.pytorch import SparseConv3d, SubMConv3d
 from torch import nn
 from torch.nn import functional as F
 

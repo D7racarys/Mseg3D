@@ -1,0 +1,138 @@
+Mseg3d quick start:（open-mmlab）
+1）激活环境(可选：查看环境污染)
+conda activate open-mmlab
+	 python -c "import sys; print('\n'.join(sys.path))"
+2）清除污染
+	export PYTHONNOUSERSITE=1 && unset PYTHONPATH
+3）全局变量引入相关模块（det3d、proto、apex等等）
+	    export PYTHONPATH=/data/luochao/Paper/lidarseg3d:/data/luochao/Paper/lidarseg3d/waymo-open-dataset/src:/data/luochao/Paper/lidarseg3d/apex:$PYTHONPATH
+4）运行命令
+	CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 \
+	python -m torch.distributed.launch \
+	--nproc_per_node=8 \
+	--master_port=17045 \
+tools/train.py configs/semanticnusc/MSeg3D/semnusc_avgvfe_unetscn3d_hrnetw18_lr1en2_e12.py
+
+1、环境使用：
+    open-mmlab(成功运行)用的cu111的spconv
+    mseg3d-y(新)
+    用和当前cuda版本不一样的pytorch，apex会拒绝编译
+2、网络错误加上 -i https://pypi.tuna.tsinghua.edu.cn/simple
+2.5 用这个命令查看是否存在环境污染
+    python -c "import sys; print('\n'.join(sys.path))"
+3、184有污染问题，建好环境后，加上export PYTHONNOUSERSITE=1 && unset PYTHONPATH清除污染
+    每次重启终端都要用这个命令
+    出大问题，184所有的torch包都是从open-mmlab这个环境里引入的，否则就报错
+    先尝试把新环境的torch装好吧
+        听说有人用conda不行，pip成功了  pip install torch==1.7.1+cu110 torchvision==0.8.2+cu110 torchaudio==0.7.2 -f https://download.pytorch.org/whl/torch_stable.html
+        确实可以
+4、pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.txt
+    pip install waymo-open-dataset-tf-2-6-0==1.4.3 -i https://pypi.tuna.tsinghua.edu.cn/simple
+    能解决这个包的安装问题，直接一起装就算有指定最后那个路径也会失败
+        这是因为出错的不是waymo这个包，而是timm
+        gpt给了解决方案，安装旧版本不拉取huggingface的timm:pip install timm==0.4.12 -i https://pypi.tuna.tsinghua.edu.cn/simple
+    
+5、官方文档里的命令
+    1）把lidarseg3d加到PYTHONPATH
+        # NOTE: add lidarseg3d to PYTHONPATH by adding the following line to ~/.bashrc (change the path accordingly) and reactivating it
+        export PYTHONPATH="${PYTHONPATH}:PATH_TO_lidarseg3d"
+    2）先pip install nuscenes-devkit==1.1.6
+    3）把nuscenes-devkit加到PYTHONPATH
+        export PYTHONPATH="${PYTHONPATH}:PATH_TO_lidarseg3d/nuscenes-devkit/python-sdk"
+6、安装apex(实测也可以不装)
+    可以直接询问gpt，遇见一个五颜六色的报错，发现还是网络问题y
+    用这个命令：pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -v --no-cache-dir . \
+            --global-option="--cpp_ext" \
+            --global-option="--cuda_ext" \
+            --global-option="--deprecated_fused_adam" \
+            --global-option="--fast_multihead_attn"
+7、安装spconv
+    pip install spconv-cu113
+8、编译
+    export CUDA_HOME=/usr/local/cuda-11.8
+    export CUDA_PATH=/usr/local/cuda-11.8
+    export PATH=$CUDA_HOME/bin:$PATH
+    export LD_LIBRARY_PATH=$CUDA_HOME/lib64:$LD_LIBRARY_PATH
+    export CPLUS_INCLUDE_PATH=$CUDA_HOME/include:$CPLUS_INCLUDE_PATH
+
+    清除旧变量（可选）
+    unset CUDA_HOME
+    unset CUDA_PATH
+    unset LD_LIBRARY_PATH
+    unset CPLUS_INCLUDE_PATH
+
+    随后 bash setup.sh
+9、mmcv安装
+    pip install mmcv-full -f https://download.openmmlab.com/mmcv/dist/cu110/torch1.7.1/index.html
+    报了一个错
+        tensorflow 2.6.0 requires typing-extensions~=3.7.4, but you have typing-extensions 4.7.1 which is incompatible.
+10、spconv这边运行的时候报了一个错
+    python setup.py bdist_wheel
+    报的找不到cuDNN
+
+# 构建数据集部分：
+
+    # 应对找不到det3d，不要进到ops一个一个编译，没用
+    export PYTHONPATH=/data/luochao/Paper/lidarseg3d:$PYTHONPATH # 1
+
+    waymo数据集似乎有点问题，
+    ImportError: cannot import name 'segmentation_metrics_pb2' from 'waymo_open_dataset.protos' 
+    (/home/luochao/.conda/envs/open-mmlab/lib/python3.7/site-packages/waymo_open_dataset/protos/__init__.py)
+    但是文件其实都已经生成好了，最后无奈注释
+    /data/luochao/Paper/lidarseg3d/det3d/datasets/__init__.py的5-6行 # 这个没用，最后还是需要用proto解析所有python文件
+
+    # 用于解决已经使用proto解析之后仍然找不到文件的错误
+    export PYTHONPATH=%PYTHONPATH:/data/luochao/Paper/lidarseg3d/waymo-open-dataset/src # 2
+
+    export PYTHONPATH=%PYTHONPATH:/data/luochao/Paper/lidarseg3d/apex # 3
+
+    这条命令是1、2和3的融合版，三条命令执行有顺序要求，直接用这条省事
+    export PYTHONPATH=/data/luochao/Paper/lidarseg3d:/data/luochao/Paper/lidarseg3d/waymo-open-dataset/src:/data/luochao/Paper/lidarseg3d/apex:$PYTHONPATH
+
+    报错：
+        ImportError: cannot import name 'builder' from 'google.protobuf.internal' (/home/luochao/.conda/envs/open-mmlab/lib/python3.7/site-packages/google/protobuf/internal/__init__.py)
+    解决：
+        pip install protobuf==3.20.3
+
+    报错： 
+        assert table_name in self.table_names, "Table {} not found".format(table_name)
+    解决：
+        在输出的信息中有category、sensor、log等等的具体数量，但是没有lidarseg，说明nuscenes-devkit根本没有尝试去加载lidarseg
+        预计是nuscenes-devkit版本太老导致（1.0.5）
+        pip install nuscenes-devkit>=1.1.5
+        最后安装了1.1.10版本，解决问题，也可以直接指定使用1.1.6版本
+
+# 实验部分
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 \
+python -m torch.distributed.launch \
+--nproc_per_node=8 \
+--master_port=17045 \
+tools/train.py configs/semanticnusc/MSeg3D/semnusc_avgvfe_unetscn3d_lidarbaseline_lr1en2_e12.py
+
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python -m torch.distributed.launch --nproc_per_node=6 ./tools/train.py \ 
+configs/semanticnusc/MSeg3D/semnusc_avgvfe_unetscn3d_lidarbaseline_lr1en2_e12.py --tcp_port 17045
+
+环境配置：
+1、184有污染问题，建好环境后，加上export PYTHONNOUSERSITE=1 和 unset PYTHONPATH清除污染
+2、pip install waymo-open-dataset-tf-2-6-0==1.4.3 -i https://pypi.tuna.tsinghua.edu.cn/simple
+    能解决这个包的安装问题，直接一起装就算有指定最后那个路径也没有，逆天
+
+
+export CUDA_HOME=/usr/local/cuda-11.8
+export CUDNN_INCLUDE_DIR=/usr/local/cuda-11.8/include
+export CUDNN_LIBRARY=/usr/local/cuda-11.8/lib64/libcudnn.so
+export CUDNN_LIB_DIR=/usr/local/cuda-11.8/lib64
+export CUDNN_PATH=/usr/local/cuda-11.8
+export LD_LIBRARY_PATH=$CUDA_HOME/lib64:$LD_LIBRARY_PATH
+export PATH=$CUDA_HOME/bin:$PATH
+
+再确定了一遍之前运行mseg3d的老环境能不能跑
+    其中lidarseg跑不了，里面缺很多依赖，应该是UniPAD的环境，不过里面很混乱
+    mseg3d段错误 export PYTHONNOUSERSITE=1 && unset PYTHONPATH清理污染之后还是段错误
+    open-mmlab也段错误 清理污染后少det3d 解决之后少dropblock 解决之后
+
+python -m torch.distributed.launch --nproc_per_node=8 tools/dist_test.py \
+    configs/semanticnusc/MSeg3D/semnusc_avgvfe_unetscn3d_hrnetw18_lr1en2_e12.py \
+    --work_dir work_dirs/eval_results \
+    --checkpoint work_dirs/semnusc_avgvfe_unetscn3d_hrnetw18_lr1en2_e12/epoch_12.pth \
+    --launcher pytorch

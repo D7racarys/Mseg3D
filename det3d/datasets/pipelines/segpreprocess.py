@@ -146,6 +146,7 @@ class SegVoxelization(object):
         )
 
     def __call__(self, res, info):
+
         voxel_size = self.voxel_generator.voxel_size
         pc_range = self.voxel_generator.point_cloud_range
         grid_size = self.voxel_generator.grid_size

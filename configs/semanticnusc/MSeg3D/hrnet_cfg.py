@@ -9,6 +9,11 @@ from addict.addict import Dict
 # norm_cfg = dict(type='SyncBN', requires_grad=True) # mmcv style
 norm_cfg = dict(type='BN', requires_grad=True) # det3d style
 
+# hrnet_w18和hrnet_w48的区别
+# hrnet_w48 (宽模型)：
+# 优点： 通常具有更强的特征表示能力，可能在更复杂的任务或需要更高精度的任务上表现更好。
+# 缺点： 参数量更大，计算成本更高，内存占用更多，训练时间更长。需要更多的计算资源（GPU 内存和计算能力）。
+# hrnet_w18则相反
 
 hrnet_w18=dict(
     type='HRNet',

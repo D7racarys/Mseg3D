@@ -3,6 +3,9 @@ from ..registry import DETECTORS
 from .single_stage import SingleStageDetector
 from det3d.torchie.trainer import load_checkpoint
 
+# 所以，SegMSeg3DNet 的输出是：
+# 训练时：一个包含总损失及各项子损失的字典。
+# 推理时：三维点云上每个点的语义类别预测（以及可能的置信度）。
 
 @DETECTORS.register_module
 class SegMSeg3DNet(SingleStageDetector):

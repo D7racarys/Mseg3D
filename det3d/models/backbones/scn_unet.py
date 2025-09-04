@@ -1,6 +1,6 @@
 from functools import partial
 
-import spconv
+import spconv.pytorch as spconv
 import torch
 import torch.nn as nn
 import numpy as np
@@ -54,21 +54,33 @@ class SparseBasicBlock(spconv.SparseModule):
         assert x.features.dim() == 2, 'x.features.dim()=%d' % x.features.dim()
 
         out = self.conv1(x)
-        out.features = self.bn1(out.features)
-        out.features = self.relu(out.features)
+        # out.features = self.bn1(out.features)
+        # out.features = self.relu(out.features)
+
+        out = out.replace_feature(self.bn1(out.features))
+        out = out.replace_feature(self.relu(out.features))
 
         out = self.conv2(out)
-        out.features = self.bn2(out.features)
+        # out.features = self.bn2(out.features)
+        
+        out = out.replace_feature(self.bn2(out.features))
 
         if self.downsample is not None:
             identity = self.downsample(x)
 
-        out.features += identity
-        out.features = self.relu(out.features)
+        # out.features += identity
+        out = out.replace_feature(out.features + identity)
+
+        # out.features = self.relu(out.features)
+
+        out = out.replace_feature(self.relu(out.features))
 
         return out
 
-
+# UNetSCN3D 类是一个专门为点云数据设计的三维特征提取网络，它构建了一个基于稀疏卷积的 U-Net 架构。它的主要作用是：
+# 高效处理稀疏点云数据：通过 spconv 库，只对非空体素进行计算，大大提高了效率。
+# 提取多尺度三维特征：编码器捕获高级语义信息，解码器通过跳跃连接恢复空间细节，输出不同分辨率的特征图。
+# 提供高分辨率点级特征：特别是其最终上采样输出 (x_up1.features)，能够提供每个体素（或近似于每个点）的丰富特征表示，这对于三维语义分割、部件分割等需要精细空间感知的任务至关重要。
 @BACKBONES.register_module
 class UNetSCN3D(nn.Module):
     """
@@ -163,10 +175,14 @@ class UNetSCN3D(nn.Module):
     def UR_block_forward(self, x_lateral, x_bottom, conv_t, conv_m, conv_inv):
         x_trans = conv_t(x_lateral)
         x = x_trans
-        x.features = torch.cat((x_bottom.features, x_trans.features), dim=1)
+        # x.features = torch.cat((x_bottom.features, x_trans.features), dim=1)
+
+        x = x.replace_feature(torch.cat((x_bottom.features, x_trans.features), dim=1))
         x_m = conv_m(x)
         x = self.channel_reduction(x, x_m.features.shape[1])
-        x.features = x_m.features + x.features
+        # x.features = x_m.features + x.features
+
+        x = x.replace_feature(x_m.features + x.features)
         x = conv_inv(x)
         return x
 
@@ -183,7 +199,9 @@ class UNetSCN3D(nn.Module):
         features = x.features
         n, in_channels = features.shape
         assert (in_channels % out_channels == 0) and (in_channels >= out_channels)
-        x.features = features.view(n, out_channels, -1).sum(dim=2)
+        # x.features = features.view(n, out_channels, -1).sum(dim=2)
+
+        x = x.replace_feature(features.view(n, out_channels, -1).sum(dim=2))
         return x
 
     def forward(self, batch_dict):

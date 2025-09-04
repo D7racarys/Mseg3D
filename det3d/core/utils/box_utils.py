@@ -5,7 +5,7 @@ from scipy.spatial import Delaunay
 
 from det3d.ops.roiaware_pool3d import roiaware_pool3d_utils
 from . import common_utils
-import spconv
+import spconv.pytorch as spconv
 
 
 def in_hull(p, hull):

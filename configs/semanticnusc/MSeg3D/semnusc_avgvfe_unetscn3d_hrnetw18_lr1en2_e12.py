@@ -7,6 +7,7 @@ from addict.addict import Dict
 from hrnet_cfg import hrnet_w18
 from fcn_cfg import fcn_head
 
+# 使用的是HRNet-w48作为backbone图像和UNetSCN3D作为backbone点云结合的方法
 num_class=17
 ignore_class=0
 
@@ -16,6 +17,8 @@ use_img = True
 # NOTE: keep the order
 cam_chan = ['CAM_FRONT', 'CAM_FRONT_RIGHT', 'CAM_BACK_RIGHT', 'CAM_BACK', 'CAM_BACK_LEFT', 'CAM_FRONT_LEFT']
 cam_names = ['1', '2', '3', '4', '5', '6'] 
+
+# 图像均值和方差，用于标准化
 nusc_mean = [0.40789654, 0.44719302, 0.47026115] # BGR
 nusc_std = [0.28863828, 0.27408164, 0.27809835] # BGR
 cam_attributes = {
@@ -39,16 +42,14 @@ hrnet_w18.update(hrnet_w18_cfg)
 
 
 fcn_head_cfg = dict(
-    type="FCNMSeg3DHead",
-    
-    num_classes=num_class,
-    ignore_index=ignore_class,
-    in_index=(0, 1, 2, 3), 
-    # in_channels=[48, 96, 192, 384], # hrnet-w48
-    in_channels=[18, 36, 72, 144],  # hrnet-w18 
-    num_convs=2,
-    channels=48, # compressed channels
-    loss_weight=0.5, 
+    type="FCNMSeg3DHead",           # 分割头类型，FCN-based 3D Seg Head
+    num_classes=num_class,         # 输出类别数（不含 ignore 类）
+    ignore_index=ignore_class,     # 忽略的类别索引，通常是背景或无标签
+    in_index=(0, 1, 2, 3),         # 从 HRNet 哪几个 stage 获取特征（4个分支）
+    in_channels=[18, 36, 72, 144], # 每个分支的通道数，对应 HRNet-w18 输出
+    num_convs=2,                   # 每个分支的卷积层数
+    channels=48,                   # 最后融合时通道数（压缩用）
+    loss_weight=0.5,               # 损失函数的权重（用于和主头融合损失）
 )
 fcn_head.update(fcn_head_cfg)
 
@@ -130,7 +131,7 @@ test_cfg = dict()
 
 # dataset settings
 dataset_type = "SemanticNuscDataset"
-data_root =  "data/SemanticNusc"
+data_root =  "/data/luochao/Paper/UniPAD/data/nuscenes"
 nsweeps = 1
 
 
@@ -150,7 +151,6 @@ test_preprocessor = dict(
     mode="val",
     shuffle_points=False,
 )
-
 
 
 train_image_preprocessor = dict(
@@ -193,9 +193,6 @@ test_image_preprocessor = dict(
 )
 
 
-
-
-
 voxel_generator = dict(
     range=point_cloud_range,
     voxel_size=voxel_size,
@@ -226,9 +223,9 @@ val_pipeline = [
 test_pipeline = []
 
 
-train_anno = "data/SemanticNusc/infos_train_10sweeps_segdet_withvelo_filter_True.pkl"
-val_anno = "data/SemanticNusc/infos_val_10sweeps_segdet_withvelo_filter_True.pkl"
-test_anno = "data/SemanticNusc/infos_test_10sweeps_segdet_withvelo_filter_True.pkl"
+train_anno = "/data/luochao/Paper/UniPAD/data/nuscenes/infos_train_10sweeps_segdet_withvelo_filter_True.pkl"
+val_anno = "/data/luochao/Paper/UniPAD/data/nuscenes/infos_val_10sweeps_segdet_withvelo_filter_True.pkl"
+test_anno = "/data/luochao/Paper/UniPAD/data/nuscenes/infos_test_10sweeps_segdet_withvelo_filter_True.pkl"
 
 
 data = dict(

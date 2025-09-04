@@ -498,8 +498,8 @@ class LoadPointCloudAnnotations(object):
         # nusc seg3d
         elif res["type"] == 'SemanticNuscDataset':
             learning_map = res['learning_map']
-            data_root = 'data/SemanticNusc'
-            # lidarseg_labels_filename: data/SemanticNusc/lidarseg/v1.0-trainval/e6ca15bc5803457cba8d05f5e78f4e40_lidarseg.bin
+            data_root = '/data/luochao/Paper/UniPAD/data/nuscenes'
+            # lidarseg_labels_filename: /data/luochao/Paper/UniPAD/data/nuscenes/lidarseg/v1.0-trainval/e6ca15bc5803457cba8d05f5e78f4e40_lidarseg.bin
             lidarseg_labels_filename = os.path.join(data_root, info['seganno_path'])
 
             point_sem_labels = np.fromfile(lidarseg_labels_filename, dtype=np.uint8).reshape(-1)
