@@ -32,6 +32,9 @@ class PointSegMSeg3DHead(nn.Module):
         voxel_in_channels = model_cfg["VOXEL_IN_DIM"]
         self.dp_ratio = model_cfg["DP_RATIO"]
         # auxiliary segmentation head on voxel features
+        # 在融合网络很深的情况下，如果只有最终的 loss，前面的 voxel encoder 很难学到强监督
+        # 添加一个辅助分割头，对于从LiDAR backbone输出的特征直接进行分类
+        # 得到该损失用于直接监督lidar backbone的学习
         self.voxel_cls_layers = self.make_convcls_head(
             fc_cfg=model_cfg["VOXEL_CLS_FC"],
             input_channels=voxel_in_channels,
@@ -57,6 +60,7 @@ class PointSegMSeg3DHead(nn.Module):
             act_layer(),
         ) 
 
+        # 几何对齐实现
         fused_channels = model_cfg["GEO_FUSED_DIM"]
         self.gffm_lc = nn.Sequential(
             nn.Linear(voxel_align_channels + image_align_channels, fused_channels),
@@ -69,6 +73,8 @@ class PointSegMSeg3DHead(nn.Module):
 
 
         # cross-modal feature completion
+        # 输入体素通道数，输出图像通道数
+        # 经过预设的全连接层，预测体素对应的伪图像特征
         self.lidar_camera_mimic_layer = self.make_convcls_head(
             fc_cfg=model_cfg["MIMIC_FC"],
             input_channels=voxel_align_channels,
@@ -117,6 +123,10 @@ class PointSegMSeg3DHead(nn.Module):
 
 
     def make_convcls_head(self, fc_cfg, input_channels, output_channels, dp_ratio=0):
+        """
+            这个函数用于根据配置列表添加全连接层
+            参数为：每层结点数、输入和输出的channel数
+        """        
         fc_layers = []
         c_in = input_channels
         if dp_ratio > 0:
@@ -243,7 +253,9 @@ class PointSegMSeg3DHead(nn.Module):
             batch_dict:
                 batch_size:
                 conv_point_coords: (Nc1 + Nc2 + Nc3 + ..., 4), [bs_idx, x, y,z]
+                # 前面的括号内表示每个batch中体素的总数
                 points: (Np1 + Np2 + Np3 + ..., 4), [bs_idx, x, y,z]
+                # Np1, Np2, Np3, ...表示每个batch中点的数量
 
         Returns:
             batch_dict:
@@ -255,6 +267,7 @@ class PointSegMSeg3DHead(nn.Module):
 
         # voxel features from the spconv backbone
         voxel_features = batch_dict["conv_point_features"]
+        # 辅助分割头的损失
         voxel_logits = self.voxel_cls_layers(voxel_features)
         self.forward_ret_dict.update({
             "voxel_logits": voxel_logits,
@@ -272,6 +285,7 @@ class PointSegMSeg3DHead(nn.Module):
         # voxel features -> point lidar features
         voxel_coords = batch_dict["conv_point_coords"] 
         point_coords = batch_dict["points"]
+        # 三线性插值
         # voxel features -> point lidar features 
         point_features_lidar_0 = three_interpolate_wrap(
             new_coords=point_coords, 
@@ -349,6 +363,7 @@ class PointSegMSeg3DHead(nn.Module):
         # camera_semantic_embeddings: [batch, C_img, num_cls, 1]
         camera_semantic_embeddings = batch_dict["camera_semantic_embeddings"]
         # lidar_semantic_embeddings: [batch, C_voxel, num_cls, 1]
+        # batch_size (num_cls, C) -> (batch, num_cls, C) -> (batch, C, num_cls, 1)
         lidar_semantic_embeddings = self.lidar_sfam(
             feats=voxel_features, 
             probs=voxel_logits, 

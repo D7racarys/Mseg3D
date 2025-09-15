@@ -1,7 +1,7 @@
 Mseg3d quick start:（open-mmlab）
 1）激活环境(可选：查看环境污染)
 conda activate open-mmlab
-	 python -c "import sys; print('\n'.join(sys.path))"
+	python -c "import sys; print('\n'.join(sys.path))"
 2）清除污染
 	export PYTHONNOUSERSITE=1 && unset PYTHONPATH
 3）全局变量引入相关模块（det3d、proto、apex等等）

@@ -57,6 +57,8 @@ class LrUpdaterHook(Hook):
             group.setdefault("initial_lr", group["lr"])
         self.base_lr = [group["initial_lr"] for group in trainer.optimizer.param_groups]
 
+    # before_train_epoch 在 每个 epoch 开始前调用，用来根据预设的学习率调度策略计算新的学习率，
+    # 并更新到优化器中。这样保证训练过程中学习率按照预期的 schedule 变化
     def before_train_epoch(self, trainer):
         if not self.by_epoch:
             return

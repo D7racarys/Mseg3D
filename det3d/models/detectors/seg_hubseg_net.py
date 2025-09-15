@@ -1,14 +1,14 @@
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 from .. import builder
 from ..registry import DETECTORS
 from .single_stage import SingleStageDetector
 from det3d.torchie.trainer import load_checkpoint
 
-# 所以，SegMSeg3DNet 的输出是：
-# 训练时：一个包含总损失及各项子损失的字典。
-# 推理时：三维点云上每个点的语义类别预测（以及可能的置信度）。
 
 @DETECTORS.register_module
-class SegMSeg3DNet(SingleStageDetector):
+class SegHubSegNet(SingleStageDetector):
     def __init__(
         self,
         reader,
@@ -23,7 +23,7 @@ class SegMSeg3DNet(SingleStageDetector):
         pretrained=None,
         **kwargs,
     ):
-        super(SegMSeg3DNet, self).__init__(
+        super(SegHubSegNet, self).__init__(
             reader, backbone, neck, bbox_head, train_cfg, test_cfg, pretrained=None
         )
         
@@ -31,7 +31,6 @@ class SegMSeg3DNet(SingleStageDetector):
         self.img_head = builder.build_img_head(img_head)
         self.point_head = builder.build_point_head(point_head)
         
-
 
     def init_weights(self, pretrained=None):
         if pretrained is None:
@@ -49,19 +48,14 @@ class SegMSeg3DNet(SingleStageDetector):
 
     def forward(self, example, return_loss=True, **kwargs):
         """
-        example是样本
         """
         voxels = example["voxels"]
-        # 体素坐标
         coordinates = example["coordinates"]
         num_points_in_voxel = example["num_points"]
         num_voxels = example["num_voxels"]
         batch_size = len(num_voxels)
         # ensure that the points just including [bs_idx, x, y, z]
         points = example["points"][:, 0:4]
-
-
-
 
 
         # camera branch
@@ -77,9 +71,6 @@ class SegMSeg3DNet(SingleStageDetector):
             inputs=img_backbone_return,
             batch_size=batch_size,
         )
-        # 参数的作用是控制模型在前向推理时是否返回损失（loss），用于训练阶段的反向传播和参数更新
-        # 训练阶段开启 return_loss=True，模型会计算并返回损失值
-        # 推理阶段设为 return_loss=False，模型只返回预测结果
         if return_loss:
             # (batch, num_cams=5, h, w) -> (batch*num_cams=5, h, w) -> (batch*num_cams=5, 1, h, w)
             images_sem_labels = example["images_sem_labels"]
@@ -89,10 +80,7 @@ class SegMSeg3DNet(SingleStageDetector):
         # get image_features from the img_head
         image_features = img_data["image_features"]
         _, num_chs, ho, wo = image_features.shape
-        # 将相机特征维度从四维恢复为五维
-        # bathch_size * cam_num -> batch_size, cam_num
         image_features = image_features.view(batch_size, num_cams, num_chs, ho, wo)
-
 
 
         # lidar branch
@@ -106,12 +94,11 @@ class SegMSeg3DNet(SingleStageDetector):
             points=points,
         )
 
-        # VFE voxel feature encoding
+        # VFE
         input_features = self.reader(data["features"], data["num_voxels"], data["voxel_coords"])
         data["voxel_features"] = input_features
         
         # backbone
-        # 就是将点云体素特征输入到主干网络（UNetSCN3D）进行特征提取和空间编码
         data = self.backbone(data)
 
         # prepare labels for training
@@ -120,23 +107,15 @@ class SegMSeg3DNet(SingleStageDetector):
             data["point_sem_labels"] = example["point_sem_labels"]
 
 
-
         # fusion and segmentation in point head
         data["points_cuv"] = example["points_cuv"]
-        # example["points_cuv"] =
-        #   [
-        #       [0, 123.4, 321.5],   # 这个点落在前视相机图像 (u=123.4, v=321.5)
-        #       [1, 512.7, 200.8],   # 这个点落在右视相机图像 (u=512.7, v=200.8)
-        #   ]
-
         data["image_features"] = image_features
         data["camera_semantic_embeddings"] = img_data.get("camera_semantic_embeddings", None)
         data["metadata"] = example.get("metadata", None)
 
         data = self.point_head(batch_dict=data, return_loss=return_loss)
 
-        # 训练时返回损失字典，包含总损失和各项子损失
-        # 推理时只返回分割预测结果
+
         if return_loss:
             seg_loss_dict = {}
             point_loss, point_loss_dict = self.point_head.get_loss()

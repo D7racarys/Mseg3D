@@ -71,6 +71,7 @@ model = dict(
 
     # img branch
     img_backbone = hrnet_w18 if use_img else None,
+    # 负责将 HRNet 提取的多尺度特征进一步融合和分类，输出图像分割结果或特征。
     img_head = fcn_head if use_img else None,    
     
 
@@ -82,39 +83,42 @@ model = dict(
     backbone=dict(
         # type="UNetV6", 
         type="UNetSCN3D", 
-        num_input_features=5+8, 
-        ds_factor=8, 
-        us_factor=8,
+        num_input_features=5+8,
+        ds_factor=8, # 下采样因子
+        us_factor=8, # 上采样因子
         point_cloud_range=point_cloud_range, 
         voxel_size=voxel_size, 
         model_cfg=dict(
-            SCALING_RATIO=2, # channel scaling
+            SCALING_RATIO=2, # 通道缩放比
         ),
     ),
 
+    # 接收点云主干（如 UNetSCN3D）和图像分支融合后的特征
+    # 对每个体素或点进行类别预测，实现点云语义分割
     point_head=dict(
         type="PointSegMSeg3DHead",
 
-        class_agnostic=False, 
+        class_agnostic=False, # 是否使用类别无关的分割头
         num_class=num_class,
         model_cfg=dict(
-            VOXEL_IN_DIM=32,  
-            VOXEL_CLS_FC=[64],
-            VOXEL_ALIGN_DIM=64,
-            IMAGE_IN_DIM=48,  
-            IMAGE_ALIGN_DIM=64,
+            VOXEL_IN_DIM=32,  # 输入点云体素特征维度
+            VOXEL_CLS_FC=[64], # 点云体素分类全连接层配置
+            VOXEL_ALIGN_DIM=64, # 点云体素对齐维度
+            IMAGE_IN_DIM=48,    # 输入图像特征维度
+            IMAGE_ALIGN_DIM=64, # 图像特征对齐维度
 
-            GEO_FUSED_DIM=64,
-            OUT_CLS_FC=[64, 64],
-            IGNORED_LABEL=ignore_class,
-            DP_RATIO=0.25,
+            GEO_FUSED_DIM=64, # 几何融合特征维度
+            OUT_CLS_FC=[64, 64], # 输出分类全连接层配置
+            IGNORED_LABEL=ignore_class, # 忽略的标签类别
+            DP_RATIO=0.25, # dropout 比例
 
-            MIMIC_FC=[64, 64],
+            MIMIC_FC=[64, 64], # 模仿学习全连接层配置
 
+            # 含有Transformer的相关参数，可调整
             SFPhase_CFG=dict(
-                embeddings_proj_kernel_size=1, 
-                d_model=96,
-                n_head=4,
+                embeddings_proj_kernel_size=1,  # 投影卷积核大小
+                d_model=96, 
+                n_head=4, # 注意力头数
                 n_layer=6, # decreasing this can save memory
                 n_ffn=192,
                 drop_ratio=0,
@@ -132,15 +136,15 @@ test_cfg = dict()
 # dataset settings
 dataset_type = "SemanticNuscDataset"
 data_root =  "/data/luochao/Paper/UniPAD/data/nuscenes"
-nsweeps = 1
+nsweeps = 1 # 将多少帧点云（sweeps）进行叠加融合来作为当前样本的输入
 
 
 train_preprocessor = dict(
     mode="train",
     shuffle_points=True,
     npoints=100000,
-    global_rot_noise=[-0.78539816, 0.78539816],
-    global_scale_noise=[0.95, 1.05], 
+    global_rot_noise=[-0.78539816, 0.78539816],     
+    global_scale_noise=[0.95, 1.05],    
     global_translate_std=0.5,
 )
 val_preprocessor = dict(
@@ -157,6 +161,7 @@ train_image_preprocessor = dict(
     shuffle_points=train_preprocessor["shuffle_points"],
     random_horizon_flip=True,
 
+    # 随机变化图像的亮度、对比度、饱和度和色调，参数表示上下浮动的百分比范围
     random_color_jitter_cfg=dict(
         brightness=0.3, 
         contrast=0.3, 
@@ -201,14 +206,19 @@ voxel_generator = dict(
 )
 
 
+# 做一些前期准备，不涉及到网络结构
+# 包括加载数据、标签、预处理、数据增强和点云的体素化和体素标签分配
+# 最后整理为训练所需的统一输入格式
 train_pipeline = [
     dict(type="LoadPointCloudFromFile", dataset=dataset_type, use_img=use_img),
     dict(type="LoadImageFromFile", use_img=use_img),
     dict(type="LoadPointCloudAnnotations", with_bbox=False),
     dict(type="LoadImageAnnotations", points_cp_radius=2),
+    # 图像和点云的预处理和增强
     dict(type="SegPreprocess", cfg=train_preprocessor, use_img=use_img),
     dict(type="SegImagePreprocess", cfg=train_image_preprocessor),
     dict(type="SegVoxelization", cfg=voxel_generator),
+    # 为体素指派语义标签
     dict(type="SegAssignLabel", cfg=dict(voxel_label_enc="compact_value")),
     dict(type="Reformat"),
 ]
@@ -276,12 +286,15 @@ data = dict(
 
 
 # optimizer
+# 这个设置表示梯度裁剪（Gradient Clipping），用于防止梯度爆炸，提高训练稳定性
 optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
 optimizer = dict(
     type="adam", amsgrad=0.0, wd=0.01, fixed_wd=True, moving_average=False,
 )
 lr_config = dict(
-    type="one_cycle", lr_max=0.01, moms=[0.95, 0.85], div_factor=10.0, pct_start=0.4,
+    type="one_cycle", lr_max=0.01, moms=[0.95, 0.85], 
+    div_factor=10.0,  # 初始学习率是 lr_max / div_factor
+    pct_start=0.4, # 前 40% 的训练过程用于升高学习率，后 60% 用于降低学习率
 )
 
 checkpoint_config = dict(interval=1)

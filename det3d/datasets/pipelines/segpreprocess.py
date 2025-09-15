@@ -510,6 +510,11 @@ class SegImagePreprocess(object):
 
 
     def __call__(self, res, info):
+        """
+        将points_cp转换为points_cuv
+        points_cp: (N, 3),  3: [cam_id, idx_of_width, idx_of_height]
+        points_cuv: (N, 4),     4: [valid, normed_camid, normed_h_coord, normed_w_coord] 
+        """
         # res["mode"] = self.mode
         mode = res["mode"]
         dataset_type = res["type"]

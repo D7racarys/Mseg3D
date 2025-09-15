@@ -35,9 +35,11 @@ def example_to_device(example, device, non_blocking=False) -> dict:
     example_torch = {}
     float_names = ["voxels", "bev_map"]
     for k, v in example.items():
+        # 遍历所有的example，将以下这些键的 值列表 中的元素放到GPU上
         if k in ["anchors", "anchors_mask", "reg_targets", "reg_weights", "labels", "hm",
                 "anno_box", "ind", "mask", 'cat']:
             example_torch[k] = [res.to(device, non_blocking=non_blocking) for res in v]
+        # 将以下这些键的 值 放到GPU上
         elif k in [
             "voxels",
             "bev_map",
@@ -61,6 +63,7 @@ def example_to_device(example, device, non_blocking=False) -> dict:
             "points_cp",
         ]:
             example_torch[k] = v.to(device, non_blocking=non_blocking)
+        # 将值字典里的value放到GPU上
         elif k == "calib":
             calib = {}
             for k1, v1 in v.items():
@@ -308,9 +311,12 @@ class Trainer(object):
             hook (:obj:`Hook`)
             priority (int or str or :obj:`Priority`)
         """
+        # 确保类型正确
         assert isinstance(hook, Hook)
+        # 防止hook自定义属性priority
         if hasattr(hook, "priority"):
             raise ValueError('"priority" is a reserved attribute for hooks')
+        # 获取优先级，可能是整数或者字符串，数字越小，优先级越高
         priority = get_priority(priority)
         hook.priority = priority
         # Insert the hook to a sorted list
@@ -371,10 +377,12 @@ class Trainer(object):
             data, torch.cuda.current_device(), non_blocking=False
         )
 
+        # 记录数据搬运到gpu的时间
         self.call_hook("after_data_to_device")
 
         if train_mode:
             losses = model(example, return_loss=True)
+            # 记录时间
             self.call_hook("after_forward")
             loss, log_vars = parse_second_losses(losses)
             del losses
@@ -382,6 +390,7 @@ class Trainer(object):
             outputs = dict(
                 loss=loss, log_vars=log_vars, num_samples=-1  # TODO: FIX THIS
             )
+            # 记录时间
             self.call_hook("after_parse_loss")
 
             return outputs
@@ -395,6 +404,8 @@ class Trainer(object):
         self.data_loader = data_loader
         self.length = len(data_loader)
         self._max_iters = self._max_epochs * self.length
+        # before_train_epoch 在 每个 epoch 开始前调用，用来根据预设的学习率调度策略计算新的学习率，
+        # 并更新到优化器中。这样保证训练过程中学习率按照预期的 schedule 变化
         self.call_hook("before_train_epoch")
 
         base_step = epoch * self.length
@@ -537,6 +548,7 @@ class Trainer(object):
                                 mode
                             )
                         )
+                    # 获取对象属性
                     epoch_runner = getattr(self, mode)
                 elif callable(mode):
                     epoch_runner = mode
@@ -550,8 +562,10 @@ class Trainer(object):
                     if mode == "train" and self.epoch >= max_epochs:
                         return
                     elif mode == "val":
+                        # 此时epoch_runner为val函数
                         epoch_runner(data_loaders[i], **kwargs)
                     else:
+                        # 此时epoch_runner为train函数
                         epoch_runner(data_loaders[i], self.epoch, **kwargs)
 
         # time.sleep(1)
