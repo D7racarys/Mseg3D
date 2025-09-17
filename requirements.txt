@@ -42,3 +42,4 @@ timm
 
 # new packages to be installed for lidar segmentation on waymo dataset
 waymo-open-dataset-tf-2-6-0==1.4.3
+

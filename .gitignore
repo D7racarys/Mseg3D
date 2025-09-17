@@ -1,3 +1,6 @@
+# ignore by myself
+txt/
+
 # other package from github 
 apex/
 CMake/
