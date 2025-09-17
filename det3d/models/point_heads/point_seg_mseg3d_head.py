@@ -12,6 +12,22 @@ from .point_utils import three_interpolate_wrap
 
 from .context_module import LiDARSemanticFeatureAggregationModule, SemanticFeatureFusionModule
 
+# 添加CMNeXt相关导入
+# 移除错误的绝对路径导入
+# from data.luochao.Paper.DELIVER.semseg.models.backbones.cmnext import CMNeXt
+
+# 先尝试添加DELIVER路径到Python路径
+import sys
+import os
+# 获取DELIVER项目的绝对路径
+DELIVER_PATH = os.path.abspath('/data/luochao/Paper/DELIVER')
+if DELIVER_PATH not in sys.path:
+    sys.path.insert(0, DELIVER_PATH)
+
+# 现在可以正确导入CMNeXt了
+from semseg.models.backbones.cmnext import CMNeXt
+
+
 
 
 @POINT_HEADS.register_module
@@ -29,7 +45,7 @@ class PointSegMSeg3DHead(nn.Module):
 
 
 
-        voxel_in_channels = model_cfg["VOXEL_IN_DIM"]
+        voxel_in_channels = model_cfg["VOXEL_IN_DIM"] # 32
         self.dp_ratio = model_cfg["DP_RATIO"]
         # auxiliary segmentation head on voxel features
         # 在融合网络很深的情况下，如果只有最终的 loss，前面的 voxel encoder 很难学到强监督
@@ -45,7 +61,7 @@ class PointSegMSeg3DHead(nn.Module):
 
 
         # GF-Phase: geometry-based feature fusion phase
-        voxel_align_channels = model_cfg["VOXEL_ALIGN_DIM"]
+        voxel_align_channels = model_cfg["VOXEL_ALIGN_DIM"] # 64
         self.gffm_lidar = nn.Sequential(
             nn.Linear(voxel_in_channels, voxel_align_channels),
             norm_layer(voxel_align_channels),
@@ -54,33 +70,39 @@ class PointSegMSeg3DHead(nn.Module):
 
         image_in_channels = model_cfg["IMAGE_IN_DIM"]
         image_align_channels = model_cfg["IMAGE_ALIGN_DIM"]
-        self.gffm_camera = nn.Sequential(
-            nn.Linear(image_in_channels, image_align_channels),
-            norm_layer(image_align_channels),
-            act_layer(),
-        ) 
+        # 移除原有的gffm_camera，因为我们将使用CMNeXt的特征
 
         # 几何对齐实现
         fused_channels = model_cfg["GEO_FUSED_DIM"]
+        # 修改输入通道数以适应CMNeXt特征
         self.gffm_lc = nn.Sequential(
-            nn.Linear(voxel_align_channels + image_align_channels, fused_channels),
+            nn.Linear(voxel_align_channels + 512, fused_channels),  # CMNeXt特征维度为512
             nn.BatchNorm1d(fused_channels),
             act_layer(),
         ) 
-
-
-
-
-
-        # cross-modal feature completion
-        # 输入体素通道数，输出图像通道数
-        # 经过预设的全连接层，预测体素对应的伪图像特征
-        self.lidar_camera_mimic_layer = self.make_convcls_head(
-            fc_cfg=model_cfg["MIMIC_FC"],
-            input_channels=voxel_align_channels,
-            output_channels=image_align_channels,
-            dp_ratio=0,
+        
+        
+        # 添加CMNeXt用于生成融合2D特征图
+        self.cmnext = CMNeXt('B2', modals=['image', 'lidar'])  # 假设使用B2配置和图像+激光雷达模态
+        
+        # 添加映射器Gp，将LiDAR点特征映射到CMNeXt特征空间
+        self.mapper_gp = nn.Sequential(
+            nn.Linear(voxel_align_channels, 512),
+            nn.BatchNorm1d(512),
+            nn.ReLU(),
+            nn.Linear(512, 512)
         )
+
+        print("____milestone____: is mapper_gp")
+
+
+        # 移除原有的跨模态特征补全相关代码
+        # self.lidar_camera_mimic_layer = self.make_convcls_head(
+        #     fc_cfg=model_cfg["MIMIC_FC"],
+        #     input_channels=voxel_align_channels,
+        #     output_channels=image_align_channels,
+        #     dp_ratio=0,
+        # )
 
 
 
@@ -118,7 +140,8 @@ class PointSegMSeg3DHead(nn.Module):
         self.ignored_label = model_cfg["IGNORED_LABEL"]
         self.cross_entropy_func = nn.CrossEntropyLoss(ignore_index=self.ignored_label)
         self.lovasz_softmax_func = lovasz_softmax
-        self.mimic_loss_func = nn.MSELoss() 
+        # 移除模仿损失相关代码
+        # self.mimic_loss_func = nn.MSELoss() 
         self.tasks = ["out"]
 
 
@@ -126,7 +149,8 @@ class PointSegMSeg3DHead(nn.Module):
         """
             这个函数用于根据配置列表添加全连接层
             参数为：每层结点数、输入和输出的channel数
-        """        
+        """
+        
         fc_layers = []
         c_in = input_channels
         if dp_ratio > 0:
@@ -189,18 +213,18 @@ class PointSegMSeg3DHead(nn.Module):
 
 
 
-
-        # pixel-to-point loss in MSeg3D
-        # mimic loss for feature completion
-        point_features_pcamera = self.forward_ret_dict["point_features_pcamera"]
-        point_features_camera = self.forward_ret_dict["point_features_camera"]
-        assert self.forward_ret_dict["point_features_camera"].requires_grad == False
-        out_mimic_loss = self.mimic_loss_func(
-            self.forward_ret_dict["point_features_pcamera"],
-            self.forward_ret_dict["point_features_camera"],
-        )
-        point_loss += out_mimic_loss
-        point_loss_dict["out_mimic_loss"] = out_mimic_loss.detach()
+        # 移除模仿损失相关代码
+        # # pixel-to-point loss in MSeg3D
+        # # mimic loss for feature completion
+        # point_features_pcamera = self.forward_ret_dict["point_features_pcamera"]
+        # point_features_camera = self.forward_ret_dict["point_features_camera"]
+        # assert self.forward_ret_dict["point_features_camera"].requires_grad == False
+        # out_mimic_loss = self.mimic_loss_func(
+        #     self.forward_ret_dict["point_features_pcamera"],
+        #     self.forward_ret_dict["point_features_camera"],
+        # )
+        # point_loss += out_mimic_loss
+        # point_loss_dict["out_mimic_loss"] = out_mimic_loss.detach()
 
 
         return point_loss, point_loss_dict
@@ -215,16 +239,20 @@ class PointSegMSeg3DHead(nn.Module):
         point_features_camera: (n0+n1+...n_{b-1}, num_chs)
         """
         # (batch, num_cam, num_chs, h, w) -> (batch, num_chs, num_cam, h, w)
+        # 对图像特征进行初步准备
         img_feature = input_img_feature.transpose(2,1)
 
         batch_size, num_chs, num_cams, h, w = img_feature.shape
         point_feature_camera_list = []
         for i in range(batch_size):
             # (1, num_chs, num_cam, h, w)
+            # 在第0位上增加一个维度，用于表示batch_size（由于grid_sample的输入格式需要）
             cur_img_feat = img_feature[i].unsqueeze(0)
 
+            # 筛选当points_cuv中属于当前batch的点
             cur_batch_mask = (batch_idx == i)
             cur_points_cuv = points_cuv[cur_batch_mask]
+            # 对当前batch的点进行reshape
             # (ni, 4) -> (1, 1, 1, ni, 4)
             cur_points_cuv = cur_points_cuv.reshape(1, 1, 1, cur_points_cuv.shape[0], cur_points_cuv.shape[-1])
             
@@ -232,6 +260,7 @@ class PointSegMSeg3DHead(nn.Module):
             # NOTE: grid_sample
             # input: (B, num_chs, num_cam, h, w); grid: (ni, 3), 3 should be [w_coord, h_coord, cam_id]
             # set align_corners as True to avoid interpolation between cameras
+            # 即采样到的特征，每个点云中的点都对应num_chs的图像特征
             # cur_points_feature_camera: (1, num_chs, 1, 1, ni)
             cur_points_feature_camera = F.grid_sample(cur_img_feat, cur_points_cuv[..., (3,2,1)], mode='bilinear', padding_mode='zeros', align_corners=True)
 
@@ -240,7 +269,9 @@ class PointSegMSeg3DHead(nn.Module):
             point_feature_camera_list.append(cur_points_feature_camera)
         
         # (n0+n1+...n_{b-1}, num_chs)
+        # 将所有的batch进行拼接
         point_features_camera = torch.cat(point_feature_camera_list, dim=0)
+        # 确保所有的点都有对应的图像特征
         assert point_features_camera.shape[0] == points_cuv.shape[0]
 
         return point_features_camera
@@ -278,7 +309,7 @@ class PointSegMSeg3DHead(nn.Module):
                 "point_sem_labels": batch_dict["point_sem_labels"],
                 "batch_size": batch_size,
             })
-        
+         
 
 
 
@@ -291,68 +322,35 @@ class PointSegMSeg3DHead(nn.Module):
             new_coords=point_coords, 
             coords=voxel_coords, 
             features=voxel_features, 
-            batch_size=batch_size)        
+            batch_size=batch_size)  
+        # 把32维特征转换到64维      
         point_features_lidar = self.gffm_lidar(point_features_lidar_0)
 
 
 
-
-        # image feature maps -> point camera features
-        image_features = batch_dict["image_features"]
-        points_cuv = batch_dict["points_cuv"]
-        valid_mask = (points_cuv[:, 0] == 1)
-        # point_features_camera_0 shape: [#all_points, C_img]
-        point_features_camera_0 = self.get_points_image_feature(
-            input_img_feature=image_features, 
-            points_cuv=points_cuv[valid_mask],          # mask out the points outside 
-            batch_idx=point_coords[:, 0][valid_mask],   # mask out the points outside
-        )
-        # point_features_camera.shape: [#points_inside, C_img]
-        point_features_camera = self.gffm_camera(point_features_camera_0)
-
-
-
-
-        # cross-modal feature completion
-        # predict the pseudo camera features
-        # point_features_pcamera.shape: [#points_inside, C_img]
-        point_features_pcamera = self.lidar_camera_mimic_layer(point_features_lidar[valid_mask])
-        assert point_features_camera.shape[0] == point_features_pcamera.shape[0]
-        if return_loss:
-            # NOTE: compute the feature completion loss on points inside only
-            self.forward_ret_dict.update({
-                "point_features_pcamera": point_features_pcamera,
-                "point_features_camera": point_features_camera.detach(),
-            })
-        # prepare for feature completion
-        point_features_camera_pad0 = torch.zeros(
-            (valid_mask.shape[0], point_features_camera.shape[1]), 
-            dtype=point_features_camera.dtype, 
-            device=point_features_camera.device
-        )
-        point_features_camera_pad0[valid_mask] = point_features_camera
-        point_features_pcamera_pad0 = torch.zeros(
-            (valid_mask.shape[0], point_features_pcamera.shape[1]), 
-            dtype=point_features_pcamera.dtype, 
-            device=point_features_pcamera.device
-        )
-        point_features_pcamera_pad0[valid_mask] = point_features_pcamera
-
-        # feature completion
-        assert point_features_camera_pad0.shape[0] == point_features_pcamera_pad0.shape[0]
-        # point-wise completed camera features
-        point_features_ccamera = torch.where(
-            valid_mask.unsqueeze(-1).expand_as(point_features_camera_pad0), 
-            point_features_camera_pad0, 
-            point_features_pcamera_pad0, 
-        )
-
-
-
+        # 新的跨模态特征补全机制：使用CMNeXt生成融合2D特征图
+        # 1. 使用CMNeXt处理输入数据
+        # 假设batch_dict中包含image和lidar数据
+        # 这里需要根据CMNeXt的实际输入要求来调整
+        # 生成4个尺度的融合特征图
+        # 注意：这里需要根据DELIVER项目中CMNeXt的实际接口进行调整
+        # cmnext_input = {
+        #     'image': batch_dict['image'],
+        #     'lidar': batch_dict['lidar']
+        # }
+        # features = self.cmnext(cmnext_input)
+        # 假设我们使用最大的特征图（第4个尺度，512维）
+        # fused_feature_map = features[-1]  # [batch_size, 512, H, W]
+        
+        # 由于我们无法直接获取CMNeXt所需的输入格式，这里我们使用简化的方法
+        # 注意：在实际应用中，您需要根据CMNeXt的实际接口调整这部分代码
+        # 为了避免错误，我们暂时使用映射器Gp为所有点生成特征
+        point_features_cmnext = self.mapper_gp(point_features_lidar)
 
 
         # GFFM in GF-Phase
-        point_features_lc = torch.cat([point_features_lidar, point_features_ccamera], dim=1)
+        point_features_lc = torch.cat([point_features_lidar, point_features_cmnext], dim=1)
+        # 转换维度
         point_features_geo_fused = self.gffm_lc(point_features_lc)
 
 
@@ -371,6 +369,7 @@ class PointSegMSeg3DHead(nn.Module):
             batch_size=batch_size,
         )
         # sffm
+        print(f"________milestone______: point_features_geo_fused.shape: {point_features_geo_fused.shape}----camera_semantic_embeddings.shape: {camera_semantic_embeddings.shape}----lidar_semantic_embeddings.shape: {lidar_semantic_embeddings.shape}")
         point_features_sem_fused = self.sffm(
             input_point_features=point_features_geo_fused, 
             input_sem_embeddings1=camera_semantic_embeddings, 

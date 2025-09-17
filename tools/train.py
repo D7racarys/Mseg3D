@@ -156,6 +156,7 @@ def main():
     # NOTE: We recommend using ""torch" instead of "apex" for sync_bn_type.
     sync_bn_type = cfg.get("sync_bn_type", "apex")
 
+
     train_detector(
         model,
         datasets,
