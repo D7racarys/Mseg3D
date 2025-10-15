@@ -98,6 +98,16 @@ class Reformat(object):
 
                 return [data_bundle, yflip_data_bundle, xflip_data_bundle, double_flip_data_bundle], info
 
+        
+        data_bundle["mask_near"] = res["mask_near"]
+
+        # from ..utils.printres import print_dict_structure
+        # print("After Reformating: res is")
+        # print_dict_structure(res)
+        # print("data_bundle is")
+        # print_dict_structure(data_bundle)
+        # print("info is")
+        # print_dict_structure(info)
 
         return data_bundle, info
 

@@ -511,50 +511,66 @@ class SegImagePreprocess(object):
 
     def __call__(self, res, info):
         """
-        将points_cp转换为points_cuv
-        points_cp: (N, 3),  3: [cam_id, idx_of_width, idx_of_height]
-        points_cuv: (N, 4),     4: [valid, normed_camid, normed_h_coord, normed_w_coord] 
+        图像预处理和点云投影坐标转换主函数
+        
+        主要功能：
+        1. 将点云投影到图像上的坐标(points_cp)转换为规范化的坐标格式(points_cuv)
+        2. 处理多相机图像的预处理(调整大小、增强等)
+        3. 支持训练模式下的图像增强操作
+        4. 标准化处理后的图像数据
+        5. 将处理后的图像和转换后的坐标信息保存回结果字典
+        
+        参数说明：
+        - points_cp: (N, 3), 3个维度分别为[cam_id, idx_of_width, idx_of_height]，表示点云投影到图像上的坐标
+        - points_cuv: (N, 4), 4个维度分别为[valid, normed_camid, normed_h_coord, normed_w_coord]，表示规范化后的投影坐标
+        - res: 数据字典，包含原始点云、图像、标注等信息
+        - info: 附加信息字典
+        
+        返回值：
+        - 处理后的res和info字典
         """
-        # res["mode"] = self.mode
+        # 获取当前模式和数据集类型
         mode = res["mode"]
         dataset_type = res["type"]
+        
+        # 检查数据集类型是否支持
         if dataset_type == "NuScenesDataset":
             raise NotImplementedError
-        
         elif dataset_type in ["WaymoDataset"]:
             raise NotImplementedError
-            
         elif dataset_type == "SemanticNuScenesDataset":
             raise NotImplementedError
 
+        # 处理支持的语义分割数据集类型
         elif dataset_type in ["SemanticWaymoDataset", "SemanticNuscDataset", "SemanticKITTIDataset"]:
-
+            # 1. 从输入数据中提取必要的信息
             points_cp = res["lidar"]["points_cp"] # (npoints, 3), [cam_id, idx_of_width, idx_of_height]
             points = res["lidar"]["points"]
             ori_images = res["images"] 
-            assert points_cp.shape[0] == points.shape[0]
-            cam_names = res["cam"]["names"] 
-            cam_attributes = res["cam"]["attributes"]  
-            resized_shape_cv = res["cam"]["resized_shape"]
+            assert points_cp.shape[0] == points.shape[0]  # 确保点云数量与投影点数量一致
+            cam_names = res["cam"]["names"]  # 相机名称列表
+            cam_attributes = res["cam"]["attributes"]  # 相机属性(如均值、标准差等)
+            resized_shape_cv = res["cam"]["resized_shape"]  # 图像调整后的目标大小
 
-
-            # 3: [camid, u, v]
+            # 初始化规范化后的投影坐标数组，初始值设为-100(无效值)
             points_cuv_all = np.ones([points.shape[0], 3]).astype(np.float32) * -100
                 
+            # 检查是否有图像标注信息
             img_has_annotations = res["cam"]["annotations"] is not None
 
-            # training: resize the multicamera images as the same shape, then do augmentations
-            # inference: resize the multicamera images as the same shape
+            # 2. 调整所有相机图像的大小并更新对应的点云投影坐标
             resized_images = []
             resized_image_sem_labels = []
             for cam_id, ori_image in zip(cam_names, ori_images):
+                # 筛选当前相机对应的点云投影点
                 point_cam_id_mask = points_cp[:, 0] == int(cam_id)
-                idx = int(cam_id)-1 
+                idx = int(cam_id) - 1  # 转换为0-based索引
                 
                 if img_has_annotations:
+                    # 有标注时，同时调整图像和标注的大小
                     ori_image_sem_label = res["cam"]["annotations"]["image_sem_labels"][idx]
                     resized_image, points_cp[point_cam_id_mask], image_label = image_and_points_cp_and_label_resize(
-                        image=ori_image, # (1280, 1920, 3) or (886, 1920, 3)
+                        image=ori_image, 
                         points_cp=points_cp[point_cam_id_mask], 
                         image_label=ori_image_sem_label, 
                         resized_shape=resized_shape_cv,
@@ -562,6 +578,7 @@ class SegImagePreprocess(object):
                     resized_images.append(resized_image)
                     resized_image_sem_labels.append(image_label)
                 else:
+                    # 无标注时，仅调整图像大小
                     resized_image, points_cp[point_cam_id_mask], _ = image_and_points_cp_and_label_resize(
                         image=ori_image, 
                         points_cp=points_cp[point_cam_id_mask], 
@@ -570,15 +587,17 @@ class SegImagePreprocess(object):
                     )
                     resized_images.append(resized_image)
 
-
+            # 3. 训练模式下应用数据增强
             if mode == "train" and not self.no_augmentation:
                 for cam_id, img in zip(cam_names, resized_images):
+                    # 筛选当前相机对应的点云投影点
                     point_cam_id_mask = points_cp[:, 0] == int(cam_id)
-                    idx = int(cam_id)-1 
+                    idx = int(cam_id) - 1  # 转换为0-based索引
                     
                     if img_has_annotations:
                         img_sem_label = resized_image_sem_labels[idx]
-            
+                    
+                        # 随机水平翻转
                         if self.random_horizon_flip:
                             img, points_cp[point_cam_id_mask, 1], img_sem_label = image_and_points_cp_and_label_random_horizon_flip(
                                 image=img, 
@@ -586,10 +605,11 @@ class SegImagePreprocess(object):
                                 image_label=img_sem_label
                             )
 
+                        # 随机颜色抖动
                         if self.random_color_jitter:
                             img = self.random_color_jitter_wrap(img)
 
-
+                        # 随机JPEG压缩
                         if self.random_jpeg_compression:
                             img = jpeg_compression(
                                 image=img, 
@@ -597,6 +617,7 @@ class SegImagePreprocess(object):
                                 probability=self.random_jpeg_compression_cfg["probability"],
                             )
 
+                        # 随机缩放
                         if self.random_rescale:
                             img, points_cp[point_cam_id_mask], img_sem_label = self.random_rescale_wrap(
                                 image=img, 
@@ -604,6 +625,7 @@ class SegImagePreprocess(object):
                                 image_label=img_sem_label
                             )
 
+                        # 随机裁剪
                         if self.random_crop:
                             img, points_cp[point_cam_id_mask], img_sem_label = self.random_crop_wrap(
                                 image=img, 
@@ -611,72 +633,73 @@ class SegImagePreprocess(object):
                                 image_label=img_sem_label
                             )
 
-
+                        # 更新增强后的图像和标签
                         resized_images[idx] = img
                         resized_image_sem_labels[idx] = img_sem_label
                     else:
                         assert False
 
-                    
-
+            # 保存用于TTA(测试时增强)的图像
             if self.save_img_for_tta:
                 res["images_for_tta"] = deepcopy(resized_images)
 
-
-
+            # 4. 对图像进行标准化处理
             for cam_id, img in zip(cam_names, resized_images):
-                idx = int(cam_id)-1 
+                idx = int(cam_id) - 1
                 img = image_input_transform(
                     img, 
-                    mean=cam_attributes[cam_id]["mean"], 
+                    mean=cam_attributes[cam_id]["mean"],  # 使用对应相机的均值和标准差
                     std=cam_attributes[cam_id]["std"],
                 ).astype(np.float32)
                 resized_images[idx] = img
 
-
-            # NOTE: synchronous shuffle_points
+            # 如果启用了点云随机打乱，同步更新投影点坐标
             if self.shuffle_points:
                 points_shuffle_idx = res["lidar"]["points_shuffle_idx"]
                 assert points_shuffle_idx.shape[0] <= points_cp.shape[0]
                 points_cp = points_cp[points_shuffle_idx]
 
+            # 5. 重塑图像数据为网络输入格式
+            # 从 [num_cam, H, W, 3] 转换为 [num_cam, 3, H, W]，符合PyTorch的通道优先格式
+            images = np.stack(resized_images, axis=0).transpose((0, 3, 1, 2))
+            res_shape = images.shape[-2:]  # 获取图像的高度和宽度 [H, W]
 
-
-            # num_cam [H, W, 3] -> [num_cam, H, W, 3] -> [num_cam, 3, H, W]
-            images = np.stack(resized_images, axis=0).transpose((0,3,1,2))
-            res_shape = images.shape[-2:] # [H, W]
-
+            # 保存图像语义标签(如果有)
             if img_has_annotations:
-                # num_cam [H, W] -> [num_cam, H, W]
                 images_sem_labels = np.stack(resized_image_sem_labels, axis=0)
                 res["images_sem_labels"] = images_sem_labels.astype(np.float32)
 
-
-            # normalize the camera projection coordinates to [-1, 1], in order to use F.grid_sample later
-            # F.grid_sample supports 3D tensor interpolation, so the cam_id can also be normalized to [-1, 1]
-            # input: (N, C, D_\text{in}, H_\text{in}, W_\text{in})
-            # output: (N, C, D_\text{out}, H_\text{out}, W_\text{out})
-            # input: grid (N, D_out, H_out​, W_out​, 3) 3: [d, h, w]
+            # 6. points_cp到points_cuv的转换过程
+            # 这是本函数的核心转换过程，将原始投影坐标转换为规范化坐标，用于后续的特征提取
+            # 转换步骤如下：
+            # a. 将相机ID归一化到[-1, 1]范围
+            # b. 将高度坐标归一化到[-1, 1]范围
+            # c. 将宽度坐标归一化到[-1, 1]范围
+            # d. 添加有效性标志
+            
+            # a. 相机ID归一化
             if len(cam_names) > 1:
+                # 多相机情况下的归一化计算
                 points_cuv_all[:, 0] = (points_cp[:, 0] - 1) / (len(cam_names) - 1) * 2 - 1
             else:
-                # 0 is fine for nusc
+                # 单相机情况下直接设为0
                 points_cuv_all[:, 0] = 0
-                # points_cuv_all[:, 0] = -1
 
-
-            points_cuv_all[:, 1] = points_cp[:, 2] / (res_shape[0] - 1) * 2 -1
-            points_cuv_all[:, 2] = points_cp[:, 1] / (res_shape[1] - 1) * 2 -1
-
-
-            # points_cp_valid: (points.shape[0], 1)
-            points_cp_valid = (points_cp[:, 0:1] > 0).astype(points_cuv_all.dtype)  
-            # points_cuv_all: (points.shape[0], 4), the inner 4 dims: [valid, normed_camid, normed_h_coord, normed_w_coord] 
+            # b. 高度坐标归一化：将像素高度坐标转换到[-1, 1]范围
+            points_cuv_all[:, 1] = points_cp[:, 2] / (res_shape[0] - 1) * 2 - 1
             
+            # c. 宽度坐标归一化：将像素宽度坐标转换到[-1, 1]范围
+            points_cuv_all[:, 2] = points_cp[:, 1] / (res_shape[1] - 1) * 2 - 1
+
+            # d. 计算投影点有效性标志：值大于0表示有效投影
+            points_cp_valid = (points_cp[:, 0:1] > 0).astype(points_cuv_all.dtype)
+            
+            # 7. 组合有效性标志和归一化坐标，形成最终的points_cuv
+            # points_cuv的结构: [valid, normed_camid, normed_h_coord, normed_w_coord]
             res["lidar"]["points_cp"] = points_cp
-            res["lidar"]["points_cuv"] = np.concatenate([points_cp_valid, points_cuv_all], axis=1) # normalized camera projection coordinates
+            res["lidar"]["points_cuv"] = np.concatenate([points_cp_valid, points_cuv_all], axis=1)  
 
-
+            # 8. 保存处理后的图像数据
             res["images"] = images
 
         return res, info

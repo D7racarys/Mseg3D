@@ -49,8 +49,13 @@ class SegMSeg3DNet(SingleStageDetector):
 
     def forward(self, example, return_loss=True, **kwargs):
         """
-        example是样本
+        example是样本，也是数据pipeline中的res
         """
+        # milestone
+        # from ...datasets.utils.printres import print_dict_structure
+        # print("In SegMSeg3DNet: example is")
+        # print_dict_structure(example)
+
         voxels = example["voxels"]
         # 体素坐标
         coordinates = example["coordinates"]
@@ -133,13 +138,16 @@ class SegMSeg3DNet(SingleStageDetector):
         data["camera_semantic_embeddings"] = img_data.get("camera_semantic_embeddings", None)
         data["metadata"] = example.get("metadata", None)
 
+        # 前向传播得到输出结果
         data = self.point_head(batch_dict=data, return_loss=return_loss)
 
         # 训练时返回损失字典，包含总损失和各项子损失
         # 推理时只返回分割预测结果
+        mask_near = example["mask_near"]
         if return_loss:
             seg_loss_dict = {}
-            point_loss, point_loss_dict = self.point_head.get_loss()
+            # 应该在这里传入mask
+            point_loss, point_loss_dict = self.point_head.get_loss(mask_near=mask_near)
 
             # compute the img head loss
             img_loss, point_loss_dict = self.img_head.get_loss(point_loss_dict)

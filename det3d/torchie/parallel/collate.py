@@ -107,7 +107,7 @@ def collate_kitti(batch_list, samples_per_gpu=1):
                    "cyv_voxels", "cyv_num_points", "cyv_num_voxels", 
                    "voxel_sem_labels", "point_sem_labels", 
                    "voxel_inst_labels", "point_inst_labels",
-                   "points_cuv", "points_cp", 
+                   "points_cuv", "points_cp","mask_near"
                    ]:
             ret[key] = torch.tensor(np.concatenate(elems, axis=0))
         elif key in [

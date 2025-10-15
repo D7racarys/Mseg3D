@@ -412,7 +412,11 @@ class Trainer(object):
 
         # prefetcher = Prefetcher(data_loader)
         # for data_batch in BackgroundGenerator(data_loader, max_prefetch=3):
-        for i, data_batch in enumerate(data_loader):
+        for i, data_batch in enumerate(data_loader):        
+            # milestone
+            # from ...datasets.utils.printres import print_dict_structure
+            # print("In Trainer: data_batch is")
+            # print_dict_structure(data_batch)
             global_step = base_step + i
             if self.lr_scheduler is not None:
                 #print(global_step)
@@ -426,6 +430,8 @@ class Trainer(object):
             #                                data_batch,
             #                                train_mode=True,
             #                                **kwargs)
+
+            # data_batch is res
             outputs = self.batch_processor_inline(
                 self.model, data_batch, train_mode=True, **kwargs
             )

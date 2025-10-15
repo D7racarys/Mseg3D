@@ -102,6 +102,11 @@ tools/train.py configs/semanticnusc/MSeg3D/semnusc_avgvfe_unetscn3d_hrnetw18_lr1
         pip install nuscenes-devkit>=1.1.5
         最后安装了1.1.10版本，解决问题，也可以直接指定使用1.1.6版本
 
+11. 有关整个项目的运行过程中，可以参照det3d/torchie/trainer/trainer.py查看整个训练流程，其中train_pipeline的调用是在data_loader中进行，
+    具体可以在det3d/datasets/nuscenes/semanticnusc.py查看到train_pipeline的输入和输出
+12. 杀死N/A进程（能够杀死5号gpu上的全部进程）：
+    fuser -v /dev/nvidia5 | xargs -t -n 1 kill -9
+
 # 实验部分
 CUDA_VISIBLE_DEVICES=0,1,2,3 \
 python -m torch.distributed.launch \

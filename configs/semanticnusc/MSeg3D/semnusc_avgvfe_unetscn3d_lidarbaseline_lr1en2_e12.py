@@ -4,6 +4,7 @@ from typing import Sequence
 
 from addict.addict import Dict
 
+# 只使用lidar单分支作为baseline
 # 使用UNetSCN3D作为backbone单独点云
 num_class=17
 

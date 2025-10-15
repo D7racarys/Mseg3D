@@ -217,6 +217,8 @@ train_pipeline = [
     # 图像和点云的预处理和增强
     dict(type="SegPreprocess", cfg=train_preprocessor, use_img=use_img),
     dict(type="SegImagePreprocess", cfg=train_image_preprocessor),
+    ### mask输入点云
+    dict(type="SegMaskPoints", drop_ratio=0.3, mode="random", sector_params=None),
     dict(type="SegVoxelization", cfg=voxel_generator),
     # 为体素指派语义标签
     dict(type="SegAssignLabel", cfg=dict(voxel_label_enc="compact_value")),

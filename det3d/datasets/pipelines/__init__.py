@@ -12,6 +12,7 @@ from .test_aug import DoubleFlip
 from .segtest_aug import SegDoubleFlip, SegCompoundAug
 from .tta_formating import TTAReformat
 
+from .maskpoint import SegMaskPoints
 
 __all__ = [
     "Compose",
@@ -23,6 +24,7 @@ __all__ = [
     "Collect",
     "PhotoMetricDistortion",
     "Preprocess",
+    "SegMaskPoints",
     "Voxelization",
     "AssignTarget",
     "AssignLabel",
