@@ -123,7 +123,7 @@ train_cfg = dict()
 test_cfg = dict()
 
 dataset_type = "SemanticNuscDataset"
-data_root =  "/data/luochao/Paper/UniPAD/data/nuscenes"
+data_root =  "/public/home/cpliu/datasets/nuscenes"
 nsweeps = 1
 
 train_preprocessor = dict(
@@ -209,9 +209,9 @@ val_pipeline = [
 ]
 test_pipeline = []
 
-train_anno = "/data/luochao/Paper/UniPAD/data/nuscenes/infos_train_10sweeps_segdet_withvelo_filter_True.pkl"
-val_anno = "/data/luochao/Paper/UniPAD/data/nuscenes/infos_val_10sweeps_segdet_withvelo_filter_True.pkl"
-test_anno = "/data/luochao/Paper/UniPAD/data/nuscenes/infos_test_10sweeps_segdet_withvelo_filter_True.pkl"
+train_anno = "/public/home/cpliu/datasets/nuscenes/infos_train_10sweeps_segdet_withvelo_filter_True.pkl"
+val_anno = "/public/home/cpliu/datasets/nuscenes/infos_val_10sweeps_segdet_withvelo_filter_True.pkl"
+test_anno = "/public/home/cpliu/datasets/nuscenes/infos_test_10sweeps_segdet_withvelo_filter_True.pkl"
 
 data = dict(
     samples_per_gpu=1,  # Reduced batch size to avoid GPU memory issues

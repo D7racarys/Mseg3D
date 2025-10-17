@@ -135,7 +135,7 @@ test_cfg = dict()
 
 # dataset settings
 dataset_type = "SemanticNuscDataset"
-data_root =  "/data/luochao/Paper/UniPAD/data/nuscenes"
+data_root =  "/public/home/cpliu/datasets/nuscenes"
 nsweeps = 1 # 将多少帧点云（sweeps）进行叠加融合来作为当前样本的输入
 
 
@@ -233,9 +233,9 @@ val_pipeline = [
 test_pipeline = []
 
 
-train_anno = "/data/luochao/Paper/UniPAD/data/nuscenes/infos_train_10sweeps_segdet_withvelo_filter_True.pkl"
-val_anno = "/data/luochao/Paper/UniPAD/data/nuscenes/infos_val_10sweeps_segdet_withvelo_filter_True.pkl"
-test_anno = "/data/luochao/Paper/UniPAD/data/nuscenes/infos_test_10sweeps_segdet_withvelo_filter_True.pkl"
+train_anno = "/public/home/cpliu/datasets/nuscenes/infos_train_10sweeps_segdet_withvelo_filter_True.pkl"
+val_anno = "/public/home/cpliu/datasets/nuscenes/infos_val_10sweeps_segdet_withvelo_filter_True.pkl"
+test_anno = "/public/home/cpliu/datasets/nuscenes/infos_test_10sweeps_segdet_withvelo_filter_True.pkl"
 
 
 data = dict(
